@@ -1,27 +1,34 @@
-#!/bin/bash 
+#!/bin/bash
 
 files=$(ls *.asm 2>/dev/null)
 
-selected_file=$(dialog --title "File for Compilation" --menu "Files in this directory" 15 50 10 $(for f in $files; do echo "$f $f"; done) 2>&1 >/dev/tty) 
+selected_file=$(dialog --title "File for Compilation" --menu "Files in this directory" 15 50 10 $(for f in $files; do echo "$f $f"; done) 2>&1 >/dev/tty)
 
-if [ $? -eq 0 ]; then 
+if [ $? -eq 0 ]; then
   clear
   output_file="${selected_file%.asm}"
 
-  nasm -f elf64 "$selected_file" -o "$output_file.o" 
-  ld "$output_file.o" -o "$output_file"
-  clear 
-  Good_ending=$(dialog --title "Compiled as $output_file" --menu "What to do next?" 11 65 4 \
-    1 "Exit" \
-    2 "Run ./$output_file" \
-    3 "Ater run program delete it and file .o" \
-    4 "Open in Vim" 2>&1 >/dev/tty) 
-  case $Good_ending in
-    1) clear && echo "Exit without actions";;
-    2) clear && ./"$output_file" ;;
-    3) clear && ./"$output_file" && rm "$output_file.o" "$output_file" ;;
-    4) clear && vim "$selected_file";;
-  esac 
-else 
-  clear
+  tmp_file=$(mktemp)
+
+  nasm -f elf64 "$selected_file" -o "$output_file.o" 2>"$tmp_file"
+  if [ $? -ne 0 ]; then
+    echo "Error in nasm part(!):"
+    cat $tmp_file
+    rm $tmp_file
+    exit 1
+  fi
+
+  ld "$output_file.o" -o "$output_file" 2>"$tmp_file"
+  if [ $? -ne 0 ]; then
+    echo "Error in ld part(!):"
+    cat $tmp_file
+    cat "$tmp_file"
+    rm $tmp_file
+    exit 1
+  fi
+
+  ./"$output_file"
+
+  rm -rf "$output_file.o"
+  rm -rf "$output_file"
 fi
